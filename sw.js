@@ -1,7 +1,7 @@
 importScripts('https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/9.22.1/firebase-messaging-compat.js');
 
-const CACHE_NAME = 'nahrain-student-v2.0';
+const CACHE_NAME = 'nahrain-student-v2.1';
 const ASSETS = [
     './index.html',
     './manifest.json',
@@ -63,7 +63,9 @@ messaging.onBackgroundMessage(payload => {
         badge: '../logo.jpg',
         dir: 'rtl',
         lang: 'ar',
-        vibrate: [200, 100, 200],
-        tag: 'nahrain-notif',
+        vibrate: [300, 100, 300, 100, 300],
+        silent: false,
+        renotify: true,
+        tag: 'nahrain-' + Date.now(),
     });
 });

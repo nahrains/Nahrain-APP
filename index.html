@@ -109,7 +109,7 @@ html,body{height:100%;font-family:'Cairo',sans-serif;background:var(--beige);col
 .app-stat-lbl{font-size:.58rem;opacity:.68;margin-top:2px;}
 
 /* ══ SCROLL AREA ══ */
-.tab-scroll{flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;padding:0 0 80px;background:var(--beige);}
+.tab-scroll{flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;padding:0 0 16px;background:var(--beige);}
 .tab-pane{display:none;padding:16px 14px;}.tab-pane.active{display:block;}
 
 /* ══ BOTTOM TABS ══ */
@@ -247,8 +247,8 @@ html,body{height:100%;font-family:'Cairo',sans-serif;background:var(--beige);col
 .refresh-btn.spinning i{transform:rotate(360deg);}
 
 /* ══ PULL TO REFRESH ══ */
-#ptr-indicator{display:flex;align-items:center;justify-content:center;gap:8px;background:var(--sky-light);color:var(--primary);font-size:.8rem;font-weight:700;max-height:0;overflow:hidden;transition:max-height .3s ease;flex-shrink:0;}
-#ptr-indicator.show{max-height:40px;}
+#ptr-indicator{display:none;align-items:center;justify-content:center;gap:8px;background:var(--sky-light);color:var(--primary);font-size:.8rem;font-weight:700;height:36px;flex-shrink:0;}
+#ptr-indicator.show{display:flex;}
 #ptr-indicator i{animation:ptr-spin .8s linear infinite;}
 @keyframes ptr-spin{to{transform:rotate(360deg);}}
 
@@ -735,6 +735,8 @@ function startApp(u) {
   startNotifPolling(u.uid);
   startSessionCheck(u.uid);
   setTimeout(()=>initFCM(u.uid), 2000);
+  // unlock AudioContext early so first notification has sound
+  if (!_audioCtx) { try { _audioCtx = new(window.AudioContext||window.webkitAudioContext)(); if (_audioCtx.state==='suspended') _audioCtx.resume(); } catch(_){} }
 }
 
 // ════════════════════════════════════════
@@ -1223,8 +1225,7 @@ async function initFCM(uid) {
       : await Notification.requestPermission();
     if (perm !== 'granted') return;
     const messaging = firebase.messaging();
-    // استبدل REPLACE_WITH_YOUR_VAPID_KEY بمفتاح VAPID من Firebase Console → Project Settings → Cloud Messaging
-    const token = await messaging.getToken({ vapidKey: 'REPLACE_WITH_YOUR_VAPID_KEY' });
+    const token = await messaging.getToken({ vapidKey: 'BJvUNrfzNV3PadgJ0EMwSLNpgaLv-ePsJfg9aZEXQWB2FFFehPN3cFRRbtHK7OvjhJGUChVtli4N39awKnKM1VU' });
     if (token) await restPatch('users/'+uid, {fcmToken: token});
     messaging.onMessage(payload => {
       const title = payload.notification?.title || payload.data?.title || 'إشعار جديد';
