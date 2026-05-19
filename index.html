@@ -72,6 +72,7 @@ html,body{height:100%;font-family:'Cairo',sans-serif;background:var(--beige);col
 #login-screen::before{content:'';position:absolute;top:-80px;right:-80px;width:300px;height:300px;background:rgba(255,255,255,.05);border-radius:50%;}
 #login-screen::after{content:'';position:absolute;bottom:-60px;left:-60px;width:250px;height:250px;background:rgba(255,255,255,.04);border-radius:50%;}
 .login-card{background:#fff;border-radius:24px;padding:36px 28px;width:100%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,.25);position:relative;z-index:1;}
+.login-illust{width:100%;max-width:360px;margin-bottom:20px;opacity:.88;pointer-events:none;filter:drop-shadow(0 8px 24px rgba(0,0,0,.3));}
 .login-logo{text-align:center;margin-bottom:24px;}
 .login-logo img{width:72px;height:72px;border-radius:18px;object-fit:cover;box-shadow:0 4px 16px rgba(26,86,219,.25);}
 .login-logo h1{font-size:1.3rem;font-weight:900;color:var(--primary);margin-top:12px;line-height:1.3;}
@@ -128,6 +129,7 @@ html,body{height:100%;font-family:'Cairo',sans-serif;background:var(--beige);col
 .ct > i:first-child{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;background:var(--sky);border-radius:9px;font-size:.8rem;color:var(--primary);flex-shrink:0;}
 .empty{text-align:center;padding:24px 12px;color:var(--gray-400);}
 .empty i{font-size:1.8rem;margin-bottom:8px;display:block;}
+.empty img{width:150px;height:auto;margin-bottom:8px;opacity:.92;display:block;margin-left:auto;margin-right:auto;}
 .empty p{font-size:.8rem;}
 .ld{text-align:center;padding:20px;color:var(--gray-400);font-size:.8rem;}
 .ld i{display:block;margin-bottom:5px;font-size:1.2rem;}
@@ -267,7 +269,7 @@ html,body{height:100%;font-family:'Cairo',sans-serif;background:var(--beige);col
   <div class="splash-ring">
     <img src="icon.svg" alt="النهرين">
   </div>
-  <div class="splash-title">إعدادية النهرين المهنية</div>
+  <div class="splash-title">مؤسسة النهرين التعليمية الدولية</div>
   <div class="splash-divider"></div>
   <div class="splash-sub">بوابة الطالب الإلكترونية</div>
   <div class="splash-loader">
@@ -282,10 +284,11 @@ html,body{height:100%;font-family:'Cairo',sans-serif;background:var(--beige);col
 
 <!-- ══════ LOGIN ══════ -->
 <div id="login-screen" style="display:none;">
+  <img src="./login_illustration.svg" class="login-illust" alt="">
   <div class="login-card">
     <div class="login-logo">
       <img src="../logo.jpg" alt="النهرين" onerror="this.style.display='none'">
-      <h1>إعدادية النهرين المهنية</h1>
+      <h1>مؤسسة النهرين التعليمية الدولية</h1>
       <p>بوابة الطالب الإلكترونية</p>
     </div>
     <div class="lf">
@@ -311,7 +314,7 @@ html,body{height:100%;font-family:'Cairo',sans-serif;background:var(--beige);col
     <div class="app-header-top">
       <div style="flex:1;min-width:0;">
         <div class="app-header-name" id="hdr-name">مرحباً</div>
-        <div class="app-header-sub"  id="hdr-sub">إعدادية النهرين المهنية</div>
+        <div class="app-header-sub"  id="hdr-sub">مؤسسة النهرين التعليمية الدولية</div>
       </div>
       <div class="hdr-actions">
         <button class="hdr-avatar-btn" id="hdr-avatar" onclick="switchTab('profile')">ط</button>
@@ -573,7 +576,7 @@ let _scheduleData = {};
 let _filesData = [];
 let _filesFilter = 'all';
 let _notifSeenKeys = null;
-let _notifInterval = null;
+let _notifES = null;
 let _filesLoaded = false;
 let _financeLoaded = false;
 let _attListVisible = false;
@@ -722,7 +725,7 @@ function startApp(u) {
   document.getElementById('app-screen').style.display='flex';
   const bmap={samawah:'فرع السماوة',babylon:'فرع بابل',evening:'الدراسة المسائية',primary:'الابتدائية'};
   document.getElementById('hdr-name').textContent='مرحباً، '+(u.name||'الطالب');
-  document.getElementById('hdr-sub').textContent=bmap[u.branchId]||'إعدادية النهرين المهنية';
+  document.getElementById('hdr-sub').textContent=bmap[u.branchId]||'مؤسسة النهرين التعليمية الدولية';
   const av=document.getElementById('hdr-avatar'); if(av) av.textContent=(u.name||'ط').charAt(0);
   renderProfile(u);
   loadGrades(u);
@@ -732,11 +735,23 @@ function startApp(u) {
   loadSchedule(u.classId);
   loadNotifications(u.uid);
   loadSchoolSettings(u.branchId);
-  startNotifPolling(u.uid);
+  startNotifRealtime(u.uid);
   startSessionCheck(u.uid);
   setTimeout(()=>initFCM(u.uid), 2000);
-  // unlock AudioContext early so first notification has sound
-  if (!_audioCtx) { try { _audioCtx = new(window.AudioContext||window.webkitAudioContext)(); if (_audioCtx.state==='suspended') _audioCtx.resume(); } catch(_){} }
+  // unlock AudioContext during user gesture so first notification has sound
+  if (!_audioCtx) { try {
+    _audioCtx = new(window.AudioContext||window.webkitAudioContext)();
+    const resume = () => {
+      if (_audioCtx.state !== 'running') {
+        _audioCtx.resume().then(() => {
+          const buf = _audioCtx.createBuffer(1, 1, 22050);
+          const src = _audioCtx.createBufferSource();
+          src.buffer = buf; src.connect(_audioCtx.destination); src.start(0);
+        });
+      }
+    };
+    if (_audioCtx.state === 'suspended') resume(); else { const buf = _audioCtx.createBuffer(1,1,22050); const src = _audioCtx.createBufferSource(); src.buffer=buf; src.connect(_audioCtx.destination); src.start(0); }
+  } catch(_){} }
 }
 
 // ════════════════════════════════════════
@@ -777,7 +792,7 @@ function refreshCurrentTab() {
 function loadGrades(u) {
   const el = document.getElementById('grades-list');
   const entries = Object.entries(u.grades||{});
-  if (!entries.length) { el.innerHTML='<div class="empty"><i class="fa-solid fa-inbox"></i><p>لا توجد درجات مرفوعة بعد</p></div>'; return; }
+  if (!entries.length) { el.innerHTML='<div class="empty"><img src="./grades_empty_state.svg" alt=""><p>لا توجد درجات مرفوعة بعد</p></div>'; return; }
   let total=0;
   const rows=entries.map(([subj,val])=>{
     const s=Number(val)||0; total+=s;
@@ -834,7 +849,7 @@ function renderAttendance(data, fromCache) {
   const listEl=document.getElementById('att-list');
   const toggleBtn=document.getElementById('att-toggle');
   if(!records.length){
-    listEl.innerHTML='<div class="empty"><i class="fa-solid fa-clipboard-list"></i><p>لم يتم تسجيل حضور بعد</p></div>';
+    listEl.innerHTML='<div class="empty"><img src="./attendance_empty_state.svg" alt=""><p>لم يتم تسجيل حضور بعد</p></div>';
     listEl.style.display='block';
     if(toggleBtn)toggleBtn.style.display='none';
     return;
@@ -1029,7 +1044,7 @@ function renderCalendar(data, el, branchId) {
 // ════════════════════════════════════════
 async function loadFiles(branchId, classId) {
   _filesLoaded=true;
-  if(!branchId){ document.getElementById('files-list').innerHTML='<div class="empty"><i class="fa-solid fa-folder-open"></i><p>لا توجد ملفات</p></div>'; return; }
+  if(!branchId){ document.getElementById('files-list').innerHTML='<div class="empty"><img src="./files_empty_state.svg" alt=""><p>لا توجد ملفات</p></div>'; return; }
   const cached=cacheGet('files_'+branchId);
   if(cached){ _filesData=cached; renderFileFilter(); renderFiles(); }
   try {
@@ -1060,7 +1075,7 @@ function filterFiles(subject, btn) {
 function renderFiles() {
   const el=document.getElementById('files-list');
   const filtered=_filesFilter==='all'?_filesData:_filesData.filter(i=>i.subject===_filesFilter);
-  if(!filtered.length){ el.innerHTML='<div class="empty"><i class="fa-solid fa-folder-open"></i><p>لا توجد ملفات في هذا القسم</p></div>'; return; }
+  if(!filtered.length){ el.innerHTML='<div class="empty"><img src="./files_empty_state.svg" alt=""><p>لا توجد ملفات في هذا القسم</p></div>'; return; }
   el.innerHTML=filtered.map(item=>{
     const date=item.date?new Date(item.date).toLocaleDateString('ar-IQ'):'';
     const isImg=item.type==='image';
@@ -1090,12 +1105,12 @@ async function loadNotifications(uid) {
   const el=document.getElementById('notif-list');
   try {
     const data=await restGet('notifications/'+uid,{limitToLast:30});
-    if(!data||!Object.keys(data).length){ el.innerHTML='<div class="empty"><i class="fa-solid fa-bell-slash"></i><p>لا توجد إشعارات</p></div>'; return; }
+    if(!data||!Object.keys(data).length){ el.innerHTML='<div class="empty"><img src="./notifications_empty_state.svg" alt=""><p>لا توجد إشعارات</p></div>'; return; }
     const notifs=Object.entries(data)
       .map(([k,v])=>({...v,id:k}))
       .filter(n=>!n.hidden)
       .sort((a,b)=>(b.timestamp||0)-(a.timestamp||0));
-    if(!notifs.length){ el.innerHTML='<div class="empty"><i class="fa-solid fa-bell-slash"></i><p>لا توجد إشعارات</p></div>'; return; }
+    if(!notifs.length){ el.innerHTML='<div class="empty"><img src="./notifications_empty_state.svg" alt=""><p>لا توجد إشعارات</p></div>'; return; }
     const unread=notifs.filter(n=>!n.read).length;
     const badge=document.getElementById('notif-badge'), cnt=document.getElementById('notif-cnt-badge');
     if(unread>0){badge.textContent=unread;badge.style.display='flex';cnt.textContent=unread;cnt.style.display='inline';}
@@ -1123,7 +1138,7 @@ async function hideNotif(id) {
     if(el) el.remove();
     // تحديث الشارة
     const remaining=document.querySelectorAll('.notif-item').length;
-    if(!remaining) document.getElementById('notif-list').innerHTML='<div class="empty"><i class="fa-solid fa-bell-slash"></i><p>لا توجد إشعارات</p></div>';
+    if(!remaining) document.getElementById('notif-list').innerHTML='<div class="empty"><img src="./notifications_empty_state.svg" alt=""><p>لا توجد إشعارات</p></div>';
     const unreadLeft=document.querySelectorAll('.notif-item.unread').length;
     const badge=document.getElementById('notif-badge'), cnt=document.getElementById('notif-cnt-badge');
     if(unreadLeft>0){badge.textContent=unreadLeft;badge.style.display='flex';cnt.textContent=unreadLeft;cnt.style.display='inline';}
@@ -1145,20 +1160,48 @@ async function markNotifsRead(uid) {
   } catch(_) {}
 }
 
-function startNotifPolling(uid) {
-  if(_notifInterval) return;
-  _notifInterval=setInterval(async()=>{
-    try {
-      const data=await restGet('notifications/'+uid,{limitToLast:30});
-      const keys=Object.keys(data||{});
-      if(_notifSeenKeys===null){_notifSeenKeys=new Set(keys);return;}
-      const newKeys=keys.filter(k=>!_notifSeenKeys.has(k));
-      if(newKeys.length>0){
-        newKeys.forEach(k=>{ _notifSeenKeys.add(k); const n=data[k]; playChime(); showToast(n.title||'إشعار جديد',n.body||''); });
-        loadNotifications(uid);
-      }
-    } catch(_){}
-  },30000);
+function startNotifRealtime(uid) {
+  if (_notifES) { _notifES.close(); _notifES = null; }
+  _notifSeenKeys = null;
+  getToken().then(tk => {
+    const url = DB + '/notifications/' + uid + '.json' + (tk ? '?auth=' + encodeURIComponent(tk) : '');
+    const es = new EventSource(url);
+    _notifES = es;
+    es.addEventListener('put', e => {
+      try {
+        const d = JSON.parse(e.data);
+        if (d.path === '/') {
+          _notifSeenKeys = new Set(Object.keys(d.data || {}));
+        } else {
+          const key = d.path.replace(/^\//, '');
+          if (_notifSeenKeys && !_notifSeenKeys.has(key) && d.data) {
+            _notifSeenKeys.add(key);
+            const n = d.data;
+            playChime();
+            showToast(n.title || 'إشعار جديد', n.body || '');
+            loadNotifications(uid);
+          }
+        }
+      } catch(_) {}
+    });
+    es.addEventListener('patch', e => {
+      try {
+        const d = JSON.parse(e.data);
+        if (!d.data) return;
+        if (!_notifSeenKeys) _notifSeenKeys = new Set();
+        const fresh = Object.keys(d.data).filter(k => !_notifSeenKeys.has(k));
+        fresh.forEach(k => {
+          _notifSeenKeys.add(k);
+          const n = d.data[k];
+          if (n && n.title) { playChime(); showToast(n.title, n.body || ''); }
+        });
+        if (fresh.length) loadNotifications(uid);
+      } catch(_) {}
+    });
+    es.addEventListener('auth_revoked', () => { es.close(); _notifES = null; setTimeout(() => startNotifRealtime(uid), 2000); });
+    es.addEventListener('cancel', () => { es.close(); _notifES = null; });
+    es.onerror = () => { es.close(); _notifES = null; setTimeout(() => startNotifRealtime(uid), 15000); };
+  }).catch(() => { setTimeout(() => startNotifRealtime(uid), 30000); });
 }
 
 // ════════════════════════════════════════
@@ -1199,7 +1242,7 @@ function doLogout() {
   if(!confirm('هل تريد تسجيل الخروج؟')) return;
   localStorage.removeItem('nss');
   student=null; _notifSeenKeys=null; _scheduleData={};
-  if(_notifInterval){clearInterval(_notifInterval);_notifInterval=null;}
+  if(_notifES){_notifES.close();_notifES=null;}
   if(_sessionCheck){clearInterval(_sessionCheck);_sessionCheck=null;}
   _filesLoaded=_financeLoaded=false;
   _attListVisible=false;
@@ -1310,7 +1353,7 @@ function printGrades() {
   <table><thead><tr><th>المادة</th><th>الدرجة</th><th>التقييم</th></tr></thead>
   <tbody>${rows.join('')}</tbody></table>
   <div class="avg">المعدل العام: ${avg}%</div>
-  <div class="footer">إعدادية النهرين المهنية — ${new Date().toLocaleDateString('ar-IQ')}</div>
+  <div class="footer">مؤسسة النهرين التعليمية الدولية — ${new Date().toLocaleDateString('ar-IQ')}</div>
   <button class="print-btn" onclick="window.print()">طباعة</button>
   </body></html>`);
   win.document.close();

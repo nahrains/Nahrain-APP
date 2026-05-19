@@ -1,7 +1,7 @@
 importScripts('https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/9.22.1/firebase-messaging-compat.js');
 
-const CACHE_NAME = 'nahrain-student-v2.1';
+const CACHE_NAME = 'nahrain-student-v2.4';
 const ASSETS = [
     './index.html',
     './manifest.json',
